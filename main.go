@@ -1,3 +1,6 @@
+// This package implements godepmon, a tool for automatically monitoring Go packages and their
+// dependencies for changes, and executing a specified command upon detection of any changes. It is
+// designed to streamline the development workflow by providing real-time feedback.
 package main
 
 import (
@@ -14,9 +17,12 @@ import (
 )
 
 const (
+	// defaultCommand defines the default command to execute when changes are detected and no
+	// specific command has been provided by the user.
 	defaultCommand = "go run ."
 )
 
+// rootCmd defines the base command of godepmon.
 var rootCmd = &cobra.Command{
 	Use:   "godepmon [flags] [path] [--] [command]",
 	Short: "Automatically monitors a Go package along with its dependencies for any changes, triggering a specified command upon detection.",
@@ -29,13 +35,19 @@ If PATH is not specified, the current working directory is assumed.  If COMMAND 
 	Run: run,
 }
 
+// programFlags defines the flags that can be passed to godepmon via the command line.  It allows
+// users to customize the behavior of the tool, such as including external dependencies in the
+// monitoring process and adjusting verbosity.
 type programFlags struct {
 	includeExternalDeps bool
 	verbose             int
 }
 
+// flags holds the actual values of the command line flags after they have been parsed.
 var flags programFlags = programFlags{}
 
+// init initializes the command line interface, setting up flags and adjusting the logging
+// configuration based on user input.
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{
 		Out:             os.Stdout,
@@ -69,6 +81,8 @@ func main() {
 	}
 }
 
+// run is the main execution logic of the root command. It sets up signal handling for graceful
+// shutdown and orchestrates the monitoring and command execution process.
 func run(cmd *cobra.Command, args []string) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
@@ -91,6 +105,8 @@ func run(cmd *cobra.Command, args []string) {
 	}
 }
 
+// runOnce performs a single cycle of monitoring and command execution.  It starts the monitoring
+// process, waits for changes, and then executes the specified command.
 func runOnce(path string, runner *commander) {
 	watcher := NewWatcher()
 	go watcher.Watch(path)
@@ -110,6 +126,8 @@ func runOnce(path string, runner *commander) {
 	}
 }
 
+// processArgs processes the command line arguments to determine the path to monitor and the command
+// to execute. It handles default values and argument parsing logic.
 func processArgs(args []string) (string, string) {
 	// Attempt to find index of "--" arg
 	sepidx := -1
