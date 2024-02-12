@@ -53,7 +53,7 @@ func (gm *GoMod) Module() (string, error) {
 
 		parts := strings.Fields(line)
 		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid module directive in go.mod file")
+			return "", fmt.Errorf("invalid 'module' directive: %s", gm.path)
 		}
 
 		gm.module = parts[1]
@@ -64,7 +64,7 @@ func (gm *GoMod) Module() (string, error) {
 		return "", err
 	}
 
-	return "", fmt.Errorf("module directive not found in %s", gm.path)
+	return "", fmt.Errorf("'module' directive not found: %s", gm.path)
 }
 
 // FindGoModFile searches for a go.mod file starting from the specified directory path and moving
@@ -82,7 +82,7 @@ func FindGoModFile(path string) (string, error) {
 		if _, err := os.Stat(goModPath); os.IsNotExist(err) {
 			parentDir := filepath.Dir(path)
 			if parentDir == path {
-				return "", fmt.Errorf("go.mod not found")
+				return "", fmt.Errorf("go.mod file not found")
 			}
 			path = parentDir
 			continue

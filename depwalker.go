@@ -35,7 +35,7 @@ func (dw *DepWalker) List(path string) (Deps, error) {
 
 	pkgs, err := packages.Load(cfg, "./...")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load packages: %s\n", err)
+		return nil, fmt.Errorf("failed to load packages: %s", err)
 	}
 
 	imports := make(map[string]*packages.Package)

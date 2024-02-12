@@ -1,12 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/spf13/cobra"
 )
@@ -29,23 +31,41 @@ If PATH is not specified, the current working directory is assumed.  If COMMAND 
 
 type programFlags struct {
 	includeExternalDeps bool
-	verbose             bool
+	verbose             int
 }
 
 var flags programFlags = programFlags{}
 
 func init() {
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:             os.Stdout,
+		FormatTimestamp: func(i interface{}) string { return "" },
+		NoColor:         false,
+	})
+
 	f := rootCmd.Flags()
 	f.BoolVar(&flags.includeExternalDeps, "include-external-deps", false,
 		"Also include external dependencies (default: include module imports only)")
-	f.BoolVarP(&flags.verbose, "verbose", "v", false,
-		"Verbose mode")
+
+	rootCmd.PersistentFlags().
+		CountVarP(&flags.verbose, "verbose", "v", "Increase verbosity (can be used multiple times)")
+
+	cobra.OnInitialize(func() {
+		// Adjust the global logging level based on the verbosity count
+		switch flags.verbose {
+		case 0:
+			zerolog.SetGlobalLevel(zerolog.WarnLevel)
+		case 1:
+			zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		default:
+			zerolog.SetGlobalLevel(zerolog.TraceLevel)
+		}
+	})
 }
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		Fatal("Fatal error occurred:\n%v", err)
 	}
 }
 
@@ -59,10 +79,9 @@ func run(cmd *cobra.Command, args []string) {
 
 	go func() {
 		<-signals
-		fmt.Println("\nReceived interrupt signal, terminating...")
+		log.Info().Msg("received interrupt signal, terminating...")
 		if err := runner.Terminate(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error terminating command: %v\n", err)
-			os.Exit(1)
+			Fatal(err.Error())
 		}
 		os.Exit(0)
 	}()
@@ -78,22 +97,21 @@ func runOnce(path string, runner *commander) {
 	defer watcher.Close()
 
 	if err := runner.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		Fatal(err.Error())
 	}
 
 	err := <-watcher.Wait()
+	log.Debug().Msg("terminating program")
 	if terr := runner.Terminate(); terr != nil {
-		fmt.Fprintln(os.Stderr, terr.Error())
+		Error(terr.Error())
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		Fatal(err.Error())
 	}
 }
 
 func processArgs(args []string) (string, string) {
-	// Find the index of "--" and remove it if present
+	// Attempt to find index of "--" arg
 	sepidx := -1
 	for i, arg := range args {
 		if arg == "--" {
@@ -111,8 +129,7 @@ func processArgs(args []string) (string, string) {
 	if len(args) < 1 {
 		cwd, err := os.Getwd()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error obtaining current directory: %v\n", err)
-			os.Exit(1)
+			Fatal("Unable to obtain current directory\n%v", err)
 		}
 
 		return cwd, command
@@ -131,8 +148,7 @@ func processArgs(args []string) (string, string) {
 	}
 
 	if stat, err := os.Stat(path); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "path does not exist: %s\n", path)
-		os.Exit(1)
+		Fatal("Path does not exist: %s", path)
 	} else if !stat.IsDir() {
 		path = filepath.Dir(path)
 	}

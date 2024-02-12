@@ -6,11 +6,51 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/rs/zerolog/log"
 )
 
 const (
 	defaultDebounceDelay = 250 * time.Millisecond
 )
+
+type WatcherAlreadyRunningError struct{}
+
+func (e *WatcherAlreadyRunningError) Error() string {
+	return "Watcher is already running"
+}
+
+type WatcherCreationError struct {
+	Err error
+}
+
+func (e *WatcherCreationError) Error() string {
+	return fmt.Sprintf("Failed to create a new watcher\n%v", e.Err)
+}
+
+type WatcherDepWalkerError struct {
+	Err error
+}
+
+func (e *WatcherDepWalkerError) Error() string {
+	return fmt.Sprintf("Failed to determine dependencies\n%v", e.Err)
+}
+
+type PathAdditionError struct {
+	Path string
+	Err  error
+}
+
+func (e *PathAdditionError) Error() string {
+	return fmt.Sprintf("Failed to add path '%s' to watcher\n%v", e.Path, e.Err)
+}
+
+type WatcherEventError struct {
+	Err error
+}
+
+func (e *WatcherEventError) Error() string {
+	return fmt.Sprintf("Error occurred while watching files\n%v", e.Err)
+}
 
 type watcherOption func(w *watcher)
 
@@ -42,31 +82,31 @@ func WithDelay(delay time.Duration) watcherOption {
 
 func (w *watcher) Watch(path string) error {
 	if w.watcher != nil {
-		return fmt.Errorf("already watching")
+		return &WatcherAlreadyRunningError{}
 	}
 
 	w.done = make(chan error)
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return fmt.Errorf("failed to create a new watcher: %s", err)
+		return &WatcherCreationError{Err: err}
 	}
 	w.watcher = watcher
 
 	walker := DepWalker{includeExternalDeps: flags.includeExternalDeps}
 	deps, err := walker.List(path)
 	if err != nil {
-		return err
+		return &WatcherDepWalkerError{Err: err}
 	}
 
 	for _, p := range deps {
 		err = watcher.Add(p)
 		if err != nil {
-			return fmt.Errorf("failed to add path to watcher: %s (%w)\n", p, err)
+			return &PathAdditionError{Path: p, Err: err}
 		}
 	}
 
-	fmt.Printf("watching %d files...\n", len(deps))
+	log.Info().Msgf("watching %d files...", len(deps))
 	go w.monitor()
 
 	// Blocking until the first event comes through.
@@ -82,6 +122,7 @@ func (w *watcher) Close() error {
 	defer w.mu.Unlock()
 
 	if w.watcher == nil {
+		log.Trace().Msg("not closing watcher: not running")
 		return nil
 	}
 
@@ -104,13 +145,15 @@ func (w *watcher) monitor() {
 		select {
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
+				log.Trace().Msg("watcher error received but channel closed")
 				w.end(nil)
 				return
 			}
-			fmt.Printf("ERROR: %s\n", err)
+			log.Error().Msgf("error occurred while watching files: %v", err)
 
 		case e, ok := <-w.watcher.Events:
 			if !ok {
+				log.Warn().Msg("event received but channel closed")
 				w.end(nil)
 				return
 			}
@@ -119,14 +162,17 @@ func (w *watcher) monitor() {
 			//	  package so that the Create event works.
 			if !e.Has(fsnotify.Create) && !e.Has(fsnotify.Remove) &&
 				!e.Has(fsnotify.Write) {
+				log.Trace().Msgf("ignoring event: %s %s", e.Op.String(), e.Name)
 				continue
 			}
 
+			log.Trace().Msgf("processing event: %s %s", e.Op.String(), e.Name)
 			w.syncRun(func() {
 				if w.timer != nil {
 					w.stopTimer()
 				}
 
+				log.Trace().Msgf("setting up timer")
 				w.timer = time.AfterFunc(w.debounceDelay, func() {
 					w.process(e)
 				})
@@ -136,14 +182,15 @@ func (w *watcher) monitor() {
 }
 
 func (w *watcher) process(e fsnotify.Event) {
-	fmt.Println(e.String())
 
 	w.syncRun(w.stopTimer)
+	log.Info().Msgf("%s %s", e.Op.String(), e.Name)
 	w.end(nil)
 }
 
 func (w *watcher) stopTimer() {
 	if w.timer != nil {
+		log.Debug().Msg("stopping timer")
 		w.timer.Stop()
 		w.timer = nil
 	}
@@ -152,6 +199,11 @@ func (w *watcher) stopTimer() {
 func (w *watcher) end(err error) {
 	select {
 	case w.done <- err:
+		if err == nil {
+			log.Debug().Msg("ended without errors")
+		} else {
+			log.Debug().Msgf("ended with error: %s", err.Error())
+		}
 	default:
 		// Handling the case where the error cannot be sent because the channel is full or
 		// no receiver is ready.
