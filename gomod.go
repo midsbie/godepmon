@@ -15,8 +15,8 @@ type GoMod struct {
 	module string
 }
 
-// NewGoMod initializes a GoMod struct with the path to the go.mod file.
-// It takes a directory path as input and finds the go.mod file by traversing up the directory tree.
+// NewGoMod initializes a GoMod struct with the path to the go.mod file.  It takes a directory path
+// as input and finds the go.mod file by traversing up the directory tree.
 func NewGoMod(path string) (*GoMod, error) {
 	goModPath, err := FindGoModFile(path)
 	if err != nil {
@@ -31,8 +31,8 @@ func (gm *GoMod) Path() string {
 	return gm.path
 }
 
-// Module reads the go.mod file to extract and return the module path.
-// It caches the result for subsequent calls.
+// Module reads the go.mod file to extract and return the module path.  It caches the result for
+// subsequent calls.
 func (gm *GoMod) Module() (string, error) {
 	if gm.module != "" {
 		return gm.module, nil

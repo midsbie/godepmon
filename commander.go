@@ -13,15 +13,20 @@ import (
 )
 
 const (
+	// defaultTerminationTimeout specifies the default timeout duration for the termination of
+	// the command process via SIGTERM signalling.
 	defaultTerminationTimeout = 250 * time.Millisecond
 )
 
+// EmptyCommandError represents an error that occurs when an attempt is made to start a commander
+// with an empty command string.
 type EmptyCommandError struct{}
 
 func (e *EmptyCommandError) Error() string {
 	return "Command is empty"
 }
 
+// StartCommandError represents an error that occurs when starting the command fails.
 type StartCommandError struct {
 	Command string
 	Err     error
@@ -31,6 +36,7 @@ func (e *StartCommandError) Error() string {
 	return fmt.Sprintf("Failed to start command '%s'\n%v", e.Command, e.Err)
 }
 
+// ForceKillError represents an error that occurs when force-killing the process group fails.
 type ForceKillError struct {
 	Pid int
 	Err error
@@ -40,8 +46,12 @@ func (e *ForceKillError) Error() string {
 	return fmt.Sprintf("Error force-killing the process group (PID %d)\n%v", e.Pid, e.Err)
 }
 
+// commanderOption defines a function signature for options that can be passed to NewCommander to
+// configure a commander instance.
 type commanderOption func(c *commander)
 
+// commander encapsulates command execution logic, allowing for starting and terminating system
+// commands.
 type commander struct {
 	terminationTimeout time.Duration
 	cwd                string
@@ -50,16 +60,23 @@ type commander struct {
 	mu                 sync.Mutex
 }
 
+// NewCommander creates a new commander instance with the specified working directory and
+// command. It returns a pointer to the created commander instance.
 func NewCommander(cwd string, command string) *commander {
 	return &commander{terminationTimeout: defaultTerminationTimeout, cwd: cwd, command: command}
 }
 
+// WithTerminationTimeout is an option function for NewCommander that configures a custom
+// termination timeout for a commander instance.
 func WithTerminationTimeout(timeout time.Duration) commanderOption {
 	return func(c *commander) {
 		c.terminationTimeout = timeout
 	}
 }
 
+// Start initiates the execution of the commander's command. It locks the commander instance,
+// prepares the command for execution, and starts it. An error is returned if the command fails to
+// start.
 func (c *commander) Start() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -84,6 +101,9 @@ func (c *commander) Start() error {
 	return nil
 }
 
+// Terminate attempts to gracefully terminate the command process. If SIGTERM fails, it falls back
+// to force-killing the process group.  An error is returned if force-killing the process group
+// fails.
 func (c *commander) Terminate() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -111,7 +131,8 @@ func (c *commander) Terminate() error {
 	return c.forceKill()
 }
 
-// forceKill forcefully terminates the process group.
+// forceKill forcefully terminates the process group associated with the commander's command. An
+// error is returned if the operation fails.
 func (c *commander) forceKill() error {
 	if c.cmd == nil || c.cmd.Process == nil {
 		log.Debug().Msgf("not forcefully killing program: not running")
