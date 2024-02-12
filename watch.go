@@ -60,6 +60,7 @@ type watcher struct {
 	timer         *time.Timer
 	mu            sync.Mutex
 	done          chan error
+	closed        bool
 }
 
 func NewWatcher(options ...watcherOption) *watcher {
@@ -124,16 +125,20 @@ func (w *watcher) Close() error {
 	if w.watcher == nil {
 		log.Trace().Msg("not closing watcher: not running")
 		return nil
+	} else if w.closed {
+		panic("watcher should not be closed")
 	}
 
-	defer func() {
-		close(w.done)
-		w.watcher = nil
-		w.timer = nil
-	}()
+	log.Trace().Msg("closing watcher")
+
+	tw := w.watcher
 
 	w.stopTimer()
-	return w.watcher.Close()
+	close(w.done)
+	w.closed = true
+	w.watcher = nil
+
+	return tw.Close()
 }
 
 func (w *watcher) Wait() chan error {
@@ -174,7 +179,9 @@ func (w *watcher) monitor() {
 
 				log.Trace().Msgf("setting up timer")
 				w.timer = time.AfterFunc(w.debounceDelay, func() {
-					w.process(e)
+					w.syncRun(func() {
+						w.process(e)
+					})
 				})
 			})
 		}
@@ -182,9 +189,8 @@ func (w *watcher) monitor() {
 }
 
 func (w *watcher) process(e fsnotify.Event) {
-
-	w.syncRun(w.stopTimer)
 	log.Info().Msgf("%s %s", e.Op.String(), e.Name)
+	w.stopTimer()
 	w.end(nil)
 }
 
@@ -197,6 +203,11 @@ func (w *watcher) stopTimer() {
 }
 
 func (w *watcher) end(err error) {
+	if w.closed {
+		log.Trace().Msg("not ending: channel closed")
+		return
+	}
+
 	select {
 	case w.done <- err:
 		if err == nil {
