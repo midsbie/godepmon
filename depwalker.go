@@ -11,18 +11,26 @@ import (
 // Deps represents a slice of dependency file paths.
 type Deps []string
 
-// DepWalker is used to walk the dependencies of a Go module, filtering dependencies based on
+// depWalker is used to walk the dependencies of a Go module, filtering dependencies based on
 // whether they belong to the same module or include external dependencies.
-type DepWalker struct {
+type depWalker struct {
 	module              string
 	moduleWithSlash     string
 	includeExternalDeps bool
 }
 
+// NewDepWalker creates a new dependency walker with the specified options.  It returns a *depWalker
+// configured according to the provided parameters.
+func NewDepWalker(includeExternalDeps bool) *depWalker {
+	return &depWalker{
+		includeExternalDeps: includeExternalDeps,
+	}
+}
+
 // List generates a list of dependency file paths for a given directory path. It returns an error if
 // the dependencies cannot be determined. If includeExternalDeps is false, only dependencies within
 // the same module are included.
-func (dw *DepWalker) List(path string) (Deps, error) {
+func (dw *depWalker) List(path string) (Deps, error) {
 	if !dw.includeExternalDeps {
 		if gomod, err := NewGoMod(path); err != nil {
 			return nil, err
@@ -60,7 +68,7 @@ func (dw *DepWalker) List(path string) (Deps, error) {
 
 // visitAll recursively visits all packages reachable from the initial set, adding them to the
 // imports map if they meet the inclusion criteria defined by isCandidate.
-func (dw *DepWalker) visitAll(pkgs []*packages.Package, imports map[string]*packages.Package) {
+func (dw *depWalker) visitAll(pkgs []*packages.Package, imports map[string]*packages.Package) {
 	for _, pkg := range pkgs {
 		if _, ok := imports[pkg.PkgPath]; ok {
 			continue
@@ -83,7 +91,7 @@ func (dw *DepWalker) visitAll(pkgs []*packages.Package, imports map[string]*pack
 
 // isCandidate determines whether a package path should be considered for inclusion based on the
 // DepWalker's configuration.
-func (dw *DepWalker) isCandidate(pkgPath string) bool {
+func (dw *depWalker) isCandidate(pkgPath string) bool {
 	return dw.includeExternalDeps ||
 		pkgPath == dw.module ||
 		strings.HasPrefix(pkgPath, dw.moduleWithSlash)

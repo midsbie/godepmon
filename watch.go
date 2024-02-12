@@ -107,7 +107,7 @@ func (w *watcher) Watch(path string) error {
 	}
 	w.watcher = watcher
 
-	walker := DepWalker{includeExternalDeps: flags.includeExternalDeps}
+	walker := NewDepWalker(flags.includeExternalDeps)
 	deps, err := walker.List(path)
 	if err != nil {
 		return &WatcherDepWalkerError{Err: err}
