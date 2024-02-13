@@ -30,7 +30,7 @@ var rootCmd = &cobra.Command{
 
 The tool accepts an optional PATH as an argument, which specifies the Go package to monitor; and a COMMAND, which specifies the command to run when a change is detected. Flags can be used to customize the monitoring and execution behavior, making Godepmon a flexible tool for various development scenarios.
 
-If PATH is not specified, the current working directory is assumed.  If COMMAND is not specified, 'go run .' is executed.`,
+If PATH is not specified, the current working directory is assumed.  If COMMAND is not specified, 'go run .' is executed.  If intending to specify COMMAND, make sure PATH is given.`,
 	// Args: cobra.MaximumNArgs(2),
 	Run: run,
 }
@@ -60,7 +60,8 @@ func init() {
 		"Also include external dependencies (default: include module imports only)")
 
 	rootCmd.PersistentFlags().
-		CountVarP(&flags.verbose, "verbose", "v", "Increase verbosity (can be used multiple times)")
+		CountVarP(&flags.verbose, "verbose", "v",
+			"Increase verbosity. Use multiple times for more verbose output (up to three levels; e.g., -vvv).")
 
 	cobra.OnInitialize(func() {
 		// Adjust the global logging level based on the verbosity count
