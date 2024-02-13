@@ -52,7 +52,7 @@ Flags:
 Monitor the current directory and execute go test upon detecting changes:
 
 ```bash
-godepmon -- ./go test
+godepmon . -- go test
 ```
 
 Monitor a specific package and include external dependencies:
