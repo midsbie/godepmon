@@ -70,6 +70,8 @@ func init() {
 			zerolog.SetGlobalLevel(zerolog.WarnLevel)
 		case 1:
 			zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		case 2:
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		default:
 			zerolog.SetGlobalLevel(zerolog.TraceLevel)
 		}
