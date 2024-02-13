@@ -3,7 +3,7 @@
 Godepmon is a real-time monitoring tool designed to enhance the Go development workflow by
 automatically observing changes in Go packages and their dependencies. Upon detecting any
 modifications, it executes a predefined command, offering immediate feedback and streamlining the
-development process.
+development process for Go developers.
 
 ## Features
 
