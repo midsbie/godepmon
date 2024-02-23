@@ -15,8 +15,8 @@ development process for Go developers.
   changes trigger the execution command. This approach avoids unnecessary builds or tests when
   unrelated files are modified.
 * Executes a specified command (e.g., `go run .`, `go build`, `go test`) automatically upon
-  detecting changes, facilitating a smooth and efficient development experience.
-* Provides the flexibility to include or exclude external dependencies in the monitoring process.
+  detecting changes.
+* Provides the flexibility of optionally including external dependencies in the monitoring process.
 
 ## Getting Started
 
